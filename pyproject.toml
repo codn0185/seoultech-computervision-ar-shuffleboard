@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seoultech-computervision-ar-shuffleboard"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=2.4.5",
+    "opencv-python>=4.13.0.92",
+    "mediapipe>=0.10.35",
+]
+
+[dependency-groups]
+dev = [
+    "isort>=8.0.1",
+]
+
+[project.scripts]
+app = "ar_shuffleboard.main:main"
+
+# [tool.setuptools]
+# package-dir = {"" = "src"}
+
+# [tool.setuptools.packages.find]
+# where = ["src"]
