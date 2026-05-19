@@ -6,7 +6,7 @@ from .constants import USER_CONFIG_PATH, DEFAULT_CONFIG_PATH
 __all__ = ["load_config"]
 
 
-def load_config() -> dict:
+def load_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser()
 
     # default config 확인 및 불러오기
@@ -24,4 +24,5 @@ def load_config() -> dict:
         except:
             print(f"config.cfg 파일이 손상되어 기본 설정을 유지합니다.")
 
-    return {section: dict(config.items(section)) for section in config.sections()}
+    return config
+    # return {section: dict(config.items(section)) for section in config.sections()}

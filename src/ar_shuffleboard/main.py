@@ -8,7 +8,7 @@ def main():
 
     config = load_config()
 
-    controller = MainController(**config)
+    controller = MainController(config)
     controller.run()
 
 
