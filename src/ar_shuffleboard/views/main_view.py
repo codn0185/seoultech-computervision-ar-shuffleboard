@@ -5,5 +5,5 @@ if TYPE_CHECKING:
 
 
 class MainView:
-    def __init__(self, controller: "MainController"):
+    def __init__(self, controller: MainController):
         pass

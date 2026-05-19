@@ -3,7 +3,7 @@ from ar_shuffleboard.views.main_view import MainView
 
 
 class MainController:
-    def __init__(self):
+    def __init__(self, video, **kwargs):
         self.model = MainModel(self)
         self.view = MainView(self)
 

@@ -5,5 +5,5 @@ if TYPE_CHECKING:
 
 
 class MainModel:
-    def __init__(self, controller: "MainController"):
+    def __init__(self, controller: MainController):
         pass
