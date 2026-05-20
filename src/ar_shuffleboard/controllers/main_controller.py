@@ -57,7 +57,7 @@ class MainController:
 
             # 캘리브레이션
             if self.calibration_state == 0:
-                self.camera_calibrator.extract_corners(frame, save=True)
+                self.camera_calibrator.extract_corners(frame, scale=0.7, save=True)
                 if self.camera_calibrator.is_ready_for_calibration():  # 캘리브레이션 준비
                     self.calibration_state = 1
                     self.camera_calibrator.calibrate()
@@ -65,7 +65,7 @@ class MainController:
                 # self.camera_calibrator.project()
                 pass
 
-            # self.camera_calibrator.draw_on_chessboard(frame)
+            # self.camera_calibrator.draw_on_chessboard(frame, scale=0.3)
 
             # 제스처 감지
             self.gesture_detector.detect(frame, self.timestamp_ms)

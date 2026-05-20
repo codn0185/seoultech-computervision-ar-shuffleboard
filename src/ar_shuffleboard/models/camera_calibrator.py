@@ -33,19 +33,37 @@ class CameraCalibrator:
         # 캘리브레이션 결과
         self.calibration_result = {}
 
-    def extract_corners(self, frame: np.ndarray, save: bool = False) -> Optional[np.ndarray]:
+    def extract_corners(self, frame: np.ndarray, scale: float = 1.0, save: bool = False) -> Optional[np.ndarray]:
         """
         이미지에서 체스보드의 코너를 추출한다.
 
-        추출 실패 시 None을 반환한다.
+        - 속도 향상을 위해 scale < 1.0으로 축소된 이미지에서 먼저 코너를 찾고 원본 해상도로 복원한다.
+        - 추출 실패 시 None을 반환한다.
+        - save=True이면 추출된 코너를 캘리브레이션 데이터로 저장한다.
+
+        Args:
+            frame (np.ndarray): 입력 프레임
+            scale (float): 체스보드 검출에 사용할 축소 비율 (0 < scale <= 1, 1.0=원본)
+            save (bool): True면 추출 결과를 캘리브레이션 데이터에 저장
+        Returns:
+            np.ndarray or None: 검출된 코너 좌표 (N,1,2) 또는 None
         """
+        if not (0 < scale <= 1.0):  # 스케일링 범위 확인
+            scale = 1.0
+
         # 이미지 흑백 전환
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # 코너 추출
-        found, corners = cv2.findChessboardCorners(gray, self.chessboard_pattern_size)
-        if not found:
-            return None
+        if scale != 1.0:  # 스케일링 (속도 향상)
+            small = cv2.resize(gray, (0, 0), fx=scale, fy=scale)
+            found, corners = cv2.findChessboardCorners(small, self.chessboard_pattern_size)
+            if not found:
+                return None
+            corners = corners / scale  # 원본 해상도로 복원
+        else:  # 원본
+            found, corners = cv2.findChessboardCorners(gray, self.chessboard_pattern_size)
+            if not found:
+                return None
 
         # 코너 정밀화
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -107,9 +125,9 @@ class CameraCalibrator:
         image_points, _ = cv2.projectPoints(obj_for_proj, rvec, tvec, camera_matrix, dist_coeffs)
         return image_points.reshape(-1, 2)
 
-    def draw_on_chessboard(self, frame: np.ndarray):
+    def draw_on_chessboard(self, frame: np.ndarray, scale: float = 1.0):
         """체스보드 코너를 프레임에 그린다."""
-        corners = self.extract_corners(frame, save=False)
+        corners = self.extract_corners(frame, scale=scale, save=False)
         if corners is not None:
             cv2.drawChessboardCorners(frame, self.chessboard_pattern_size, corners, True)
 
