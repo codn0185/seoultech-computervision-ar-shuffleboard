@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=2.4.5",
     "opencv-python>=4.13.0.92",
     "mediapipe>=0.10.35",
+    "configparser>=7.2.0",
 ]
 
 [dependency-groups]
@@ -22,8 +23,8 @@ dev = [
 [project.scripts]
 app = "ar_shuffleboard.main:main"
 
-# [tool.setuptools]
-# package-dir = {"" = "src"}
+[tool.setuptools]
+package-dir = {"" = "src"}
 
-# [tool.setuptools.packages.find]
-# where = ["src"]
+[tool.setuptools.packages.find]
+where = ["src"]
