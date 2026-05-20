@@ -35,10 +35,12 @@ class MainView:
 
     def show_frame(self, frame: np.ndarray):
         """프레임을 출력한다."""
-        if self.mirror:
-            frame = np.flip(frame, axis=1)
         cv2.imshow(self.window_title, frame)
 
     def close_all(self):
         """모든 윈도우를 닫는다."""
         cv2.destroyAllWindows()
+
+    def put_text(self, frame: np.ndarray, text: str, org: tuple[int, int], color: tuple[int, int, int]):
+        """프레임에 텍스트 출력한다."""
+        cv2.putText(frame, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
