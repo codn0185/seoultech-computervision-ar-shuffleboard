@@ -1,7 +1,7 @@
 import configparser
 import shutil
 
-from .constants import USER_CONFIG_PATH, DEFAULT_CONFIG_PATH
+from .constants import OS
 
 __all__ = ["load_config"]
 
@@ -10,17 +10,17 @@ def load_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser()
 
     # default config 확인 및 불러오기
-    if not DEFAULT_CONFIG_PATH.exists():
-        raise FileNotFoundError(f"기본 설정 파일이 없습니다. {DEFAULT_CONFIG_PATH}")
-    config.read(DEFAULT_CONFIG_PATH, encoding="utf-8")
+    if not OS.DEFAULT_CONFIG_PATH.exists():
+        raise FileNotFoundError(f"기본 설정 파일이 없습니다. {OS.DEFAULT_CONFIG_PATH}")
+    config.read(OS.DEFAULT_CONFIG_PATH, encoding="utf-8")
 
     # user config가 없으면 default config 복사
-    if not USER_CONFIG_PATH.exists():
-        shutil.copy(DEFAULT_CONFIG_PATH, USER_CONFIG_PATH)
+    if not OS.USER_CONFIG_PATH.exists():
+        shutil.copy(OS.DEFAULT_CONFIG_PATH, OS.USER_CONFIG_PATH)
     else:
         # user config 파일 불러오기
         try:
-            config.read(USER_CONFIG_PATH, encoding="utf-8")
+            config.read(OS.USER_CONFIG_PATH, encoding="utf-8")
         except:
             print(f"config.cfg 파일이 손상되어 기본 설정을 유지합니다.")
 
