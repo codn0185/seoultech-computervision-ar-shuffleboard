@@ -32,6 +32,7 @@ class MainController:
         self.camera_calibrator = CameraCalibrator(**self.config_data)
         self.gesture_detector = GestureDetector()
 
+        self.current_frame: Optional[np.ndarray] = None  # 현재 프레임
         self.frame_index = 0  # 현재 프레임 인덱스
         self.timestamp_ms = 0  # 현재 타임스탬프 (ms)
 
@@ -41,6 +42,13 @@ class MainController:
             "terminated": False,  # 앱 종료 플래그
             "show_hands": False,  # 손 랜드마크 출력 플래그
         }
+
+        cv2.namedWindow(self.config_data["window_title"])
+        cv2.setMouseCallback(self.config_data["window_title"], self.mouseCallBack)
+
+        # 마우스 클릭한 상태로 이동하여 당기기 화살표 애니메이션 구현
+        self.arrow_origin: Optional[tuple[int, int]] = None  # 마우스 우클릭 시작 위치
+        self.max_arrow_length: float = 80  # 화살표 길이 (px)
 
         # 임시
         self.video_model.set_source(0)
@@ -76,10 +84,10 @@ class MainController:
             processed_frame = self.main_model.get_processed_frame(frame)
 
             # 오버레이 적용
-            self.drawOverlay(frame)
+            self.drawOverlay(processed_frame)
 
             # 화면에 출력
-            self.main_view.show_frame(processed_frame)
+            self.main_view.show_frame(processed_frame, apply_canvas=True)
 
             # 키 입력 감지 및 이벤트 핸들러 호출
             keycode = cv2.waitKeyEx(self.config_data["frame_interval_ms"])
@@ -145,15 +153,6 @@ class MainController:
                 if self.calibration_state == -1:
                     self.calibration_state = 0
 
-    def mouseClickEventHandler(self, event):
-        pass
-
-    def mouseReleaseEventHandler(self, event):
-        pass
-
-    def mouseMoveEventHandler(self, event):
-        pass
-
     def windowCloseEventHandler(self):
         """윈도우 닫힘을 확인하여 앱 종료를 설정한다."""
         try:
@@ -162,3 +161,32 @@ class MainController:
                 self.setFlag("terminated", True)
         except:
             self.setFlag("terminated", True)
+
+    # === Callbacks ===
+
+    def mouseCallBack(self, event, x, y, flags, param):
+        # 당기기 화살표 그리기
+        if event == cv2.EVENT_RBUTTONDOWN:  # RMB click
+            # TODO: 조건 불만족 시 None 할당 (ex: 기물 바깥 클릭)
+            self.arrow_origin = (x, y)
+        elif event == cv2.EVENT_RBUTTONUP:  # RMB release
+            self.main_view.clear_canvas()
+            if self.arrow_origin is not None:
+                x0, y0 = self.arrow_origin
+                dx, dy = x - x0, y - y0
+                length = np.hypot(dx, dy)
+                scale = min(1.0, self.max_arrow_length / length)
+                # TODO scale[0, 1]을 전달하여 이벤트 호출
+        elif event == cv2.EVENT_MOUSEMOVE and (flags & cv2.EVENT_FLAG_RBUTTON):  # RMB move w/ click
+            if self.arrow_origin is not None:
+                # temp_canvas 초기화
+                self.main_view.clear_canvas()
+                x0, y0 = self.arrow_origin
+                dx, dy = x - x0, y - y0
+                length = np.hypot(dx, dy)
+                # 최대 길이 제한
+                scale = min(1.0, self.max_arrow_length / length)
+                x1 = int(x0 + dx * scale)
+                y1 = int(y0 + dy * scale)
+                # 화살표 그리기
+                self.main_view.draw_arrow((x1, y1), (x0, y0), (255, 0, 0))
