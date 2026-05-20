@@ -25,7 +25,7 @@ class MainController:
         self.main_model = MainModel(self, **self.config_data)
         self.main_view = MainView(self, **self.config_data)
 
-        self.video_model = VideoModel()
+        self.video_model = VideoModel(**self.config_data)
         self.gesture_detector = GestureDetector()
 
         self.frame_index = 0  # 현재 프레임 인덱스

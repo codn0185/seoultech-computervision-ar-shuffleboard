@@ -6,12 +6,22 @@ from typing import Optional
 class VideoModel:
     video_capture: Optional[cv2.VideoCapture]
 
-    def __init__(self):
+    def __init__(
+        self,
+        resolution: Optional[tuple[int, int]] = None,
+        **kwargs,
+    ):
         self.video_capture = None
+        self.resolution = resolution
 
     def set_source(self, source: int):
         self.release()
         self.video_capture = cv2.VideoCapture(source)
+
+        if self.resolution is not None:
+            w, h = self.resolution
+            self.video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+            self.video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
     def release(self):
         if self.video_capture is None:
