@@ -11,7 +11,26 @@ class OS:
 
 
 class Keycode:
-    NONE: Final[int] = -1
+    # 키코드 → 문자열 매핑 (특수키 전용)
+    _CODE_TO_STR = {
+        13: "ENTER",
+        27: "ESC",
+        32: "SPACE",
+    }
+
+    @staticmethod
+    def to_str(keycode: int) -> str:
+        # 알파벳(대소문자)
+        if 65 <= keycode <= 90 or 97 <= keycode <= 122:
+            return chr(keycode)
+        # 숫자
+        if 48 <= keycode <= 57:
+            return chr(keycode)
+        # 매핑된 특수키
+        if keycode in Keycode._CODE_TO_STR:
+            return Keycode._CODE_TO_STR[keycode]
+        # 기타
+        return f"KEYCODE_{keycode}"
 
     # Uppercase letters (ASCII)
     A: Final[int] = ord("A")

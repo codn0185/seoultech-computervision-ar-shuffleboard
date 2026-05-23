@@ -2,6 +2,7 @@ from configparser import ConfigParser
 import cv2
 import numpy as np
 from typing import Optional
+from enum import Enum
 
 
 from ar_shuffleboard.models.main_model import MainModel
@@ -32,11 +33,9 @@ class MainController:
         self.camera_calibrator = CameraCalibrator(**self.config_data)
         self.gesture_detector = GestureDetector()
 
-        self.current_frame: Optional[np.ndarray] = None  # 현재 프레임
         self.frame_index = 0  # 현재 프레임 인덱스
         self.timestamp_ms = 0  # 현재 타임스탬프 (ms)
 
-        self.calibration_state: int = -1  # -1: 캘리브레이션 수행 전 / 0: 캘리브레이션에 필요한 프레임 수집 중 / 1: 캘리브레이션 완료
         # 플래그 딕셔너리
         self.flags = {
             "terminated": False,  # 앱 종료 플래그
@@ -63,17 +62,20 @@ class MainController:
             if self.config_data["mirror"]:
                 frame = np.ascontiguousarray(np.flip(frame, axis=1))
 
+            # 현재 프레임 전달
+            self.camera_calibrator.set_frame(frame)
+
             # 캘리브레이션
-            if self.calibration_state == 0:
-                self.camera_calibrator.extract_corners(frame, scale=0.7, save=True)
+            if self.camera_calibrator.calibration_fsm.is_collecting():
+                self.camera_calibrator.extract_corners(scale=0.7, save=True)  # 체스보드 코너 추출
                 if self.camera_calibrator.is_ready_for_calibration():  # 캘리브레이션 준비
-                    self.calibration_state = 1
+                    self.camera_calibrator.calibration_fsm.to_complete()
                     self.camera_calibrator.calibrate()
-            if self.calibration_state == 1:
+            if self.camera_calibrator.calibration_fsm.is_complete():
                 # self.camera_calibrator.project()
                 pass
 
-            # self.camera_calibrator.draw_on_chessboard(frame, scale=0.3)
+            self.camera_calibrator.draw_on_chessboard(scale=0.3, return_canvas=False)
 
             # 제스처 감지
             self.gesture_detector.detect(frame, self.timestamp_ms)
@@ -105,14 +107,15 @@ class MainController:
 
     def drawOverlay(self, frame: np.ndarray):
         """프레임에 오버레이를 적용한다."""
-        if self.calibration_state == -1:  # 캘리브레이션 전
+        # 캘리브레이션 오버레이
+        if self.camera_calibrator.calibration_fsm.is_waiting():  # 캘리브레이션 전
             self.main_view.put_text(
                 frame,
                 "Calibration required (press ENTER to calibrate)",
                 (20, 20),
                 (0, 80, 255),
             )
-        elif self.calibration_state == 0:  # 캘리브레이션 중
+        elif self.camera_calibrator.calibration_fsm.is_collecting():  # 캘리브레이션 중
             collected = self.camera_calibrator.get_calibration_views_count()
             required = self.camera_calibrator.MIN_CALIBRATION_VIEWS
             self.main_view.put_text(
@@ -121,11 +124,27 @@ class MainController:
                 (20, 20),
                 (0, 80, 255),
             )
-        else:  # 캘리브레이션 완료
+        elif self.camera_calibrator.calibration_fsm.is_complete():  # 캘리브레이션 완료
             self.main_view.put_text(
                 frame,
                 "Calibration completed",
                 (20, 20),
+                (0, 80, 255),
+            )
+
+        # 외부 파라미터 고정 오버레이
+        if not self.camera_calibrator.is_lock():
+            self.main_view.put_text(
+                frame,
+                "Extrinsic parameters unlocked (press L to lock)",
+                (20, 60),
+                (0, 80, 255),
+            )
+        else:  # 고정 O
+            self.main_view.put_text(
+                frame,
+                "Extrinsic parameters locked",
+                (20, 60),
                 (0, 80, 255),
             )
 
@@ -143,15 +162,23 @@ class MainController:
 
     # === Event Handlers ===
 
-    def keyEventHandler(self, event):
-        match event:
+    def keyEventHandler(self, keycode: int, **kwargs):
+        if keycode == -1:
+            return
+        print(f"[MainController] Key Pressed: {Keycode.to_str(keycode)}")
+        match keycode:
             case Keycode.ESC:
                 self.setFlag("terminated", True)
             case Keycode.SPACE:
                 self.toggleFlag("show_hands")
             case Keycode.ENTER:
-                if self.calibration_state == -1:
-                    self.calibration_state = 0
+                if self.camera_calibrator.calibration_fsm.is_waiting():
+                    self.camera_calibrator.calibration_fsm.to_collecting()
+            case Keycode.L | Keycode.l:  # 카메라 외부 파라미터 고정 토글
+                if self.camera_calibrator.is_lock():
+                    self.camera_calibrator.lock_extrinsic_parameters(lock=False)
+                else:
+                    self.camera_calibrator.lock_extrinsic_parameters(lock=True)
 
     def windowCloseEventHandler(self):
         """윈도우 닫힘을 확인하여 앱 종료를 설정한다."""
@@ -161,6 +188,10 @@ class MainController:
                 self.setFlag("terminated", True)
         except:
             self.setFlag("terminated", True)
+
+    def lockCameraAndChessboard(self, lock: bool = True):
+        """카메라 및 체스보드 고정 (rvec, tvec 값 고정)"""
+        pass
 
     # === Callbacks ===
 
