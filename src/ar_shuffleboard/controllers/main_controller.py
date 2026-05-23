@@ -86,7 +86,7 @@ class MainController:
             processed_frame = self.main_model.get_processed_frame(frame)
 
             # 오버레이 적용
-            self.drawOverlay(processed_frame)
+            self.main_view.apply_overlay(processed_frame)
 
             # 화면에 출력
             self.main_view.show_frame(processed_frame, apply_canvas=True)
@@ -104,49 +104,6 @@ class MainController:
 
         self.video_model.release()
         self.main_view.close_all()
-
-    def drawOverlay(self, frame: np.ndarray):
-        """프레임에 오버레이를 적용한다."""
-        # 캘리브레이션 오버레이
-        if self.camera_calibrator.calibration_fsm.is_waiting():  # 캘리브레이션 전
-            self.main_view.put_text(
-                frame,
-                "Calibration required (press ENTER to calibrate)",
-                (20, 20),
-                (0, 80, 255),
-            )
-        elif self.camera_calibrator.calibration_fsm.is_collecting():  # 캘리브레이션 중
-            collected = self.camera_calibrator.get_calibration_views_count()
-            required = self.camera_calibrator.MIN_CALIBRATION_VIEWS
-            self.main_view.put_text(
-                frame,
-                f"Calibrating... ({collected}/{required}) - Please align the chessboard",
-                (20, 20),
-                (0, 80, 255),
-            )
-        elif self.camera_calibrator.calibration_fsm.is_complete():  # 캘리브레이션 완료
-            self.main_view.put_text(
-                frame,
-                "Calibration completed",
-                (20, 20),
-                (0, 80, 255),
-            )
-
-        # 외부 파라미터 고정 오버레이
-        if not self.camera_calibrator.is_lock():
-            self.main_view.put_text(
-                frame,
-                "Extrinsic parameters unlocked (press L to lock)",
-                (20, 60),
-                (0, 80, 255),
-            )
-        else:  # 고정 O
-            self.main_view.put_text(
-                frame,
-                "Extrinsic parameters locked",
-                (20, 60),
-                (0, 80, 255),
-            )
 
     # === Flag Handlers ===
 
