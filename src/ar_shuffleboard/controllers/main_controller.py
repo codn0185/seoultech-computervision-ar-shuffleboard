@@ -120,6 +120,7 @@ class MainController:
     # === Event Handlers ===
 
     def keyEventHandler(self, keycode: int, **kwargs):
+        """키 입력에 별 이벤트를 처리한다."""
         if keycode == -1:
             return
         print(f"[MainController] Key Pressed: {Keycode.to_str(keycode)}")
@@ -145,10 +146,6 @@ class MainController:
                 self.setFlag("terminated", True)
         except:
             self.setFlag("terminated", True)
-
-    def lockCameraAndChessboard(self, lock: bool = True):
-        """카메라 및 체스보드 고정 (rvec, tvec 값 고정)"""
-        pass
 
     # === Callbacks ===
 
