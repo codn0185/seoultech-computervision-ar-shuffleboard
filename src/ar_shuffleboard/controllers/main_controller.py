@@ -107,10 +107,15 @@ class MainController:
 
     # === Flag Handlers ===
 
-    def setFlag(self, flag: str, value: bool):
-        """플래그 설정"""
+    def enableFlag(self, flag: str):
+        """플래그 활성화"""
         if flag in self.flags:
-            self.flags[flag] = value
+            self.flags[flag] = True
+
+    def disableFlag(self, flag: str):
+        """플래그 비활성화"""
+        if flag in self.flags:
+            self.flags[flag] = False
 
     def toggleFlag(self, flag: str):
         """플래그 토글"""
@@ -126,7 +131,7 @@ class MainController:
         print(f"[MainController] Key Pressed: {Keycode.to_str(keycode)}")
         match keycode:
             case Keycode.ESC:
-                self.setFlag("terminated", True)
+                self.enableFlag("terminated")
             case Keycode.SPACE:
                 self.toggleFlag("show_hands")
             case Keycode.ENTER:
@@ -143,9 +148,9 @@ class MainController:
         try:
             visible = cv2.getWindowProperty(self.config_data["window_title"], cv2.WND_PROP_VISIBLE)
             if visible < 1:
-                self.setFlag("terminated", True)
+                self.enableFlag("terminated")
         except:
-            self.setFlag("terminated", True)
+            self.enableFlag("terminated")
 
     # === Callbacks ===
 
