@@ -13,6 +13,7 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "mediapipe>=0.10.35",
     "configparser>=7.2.0",
+    "pymunk>=7.2.0",
 ]
 
 [dependency-groups]
