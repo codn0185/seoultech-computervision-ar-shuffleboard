@@ -1,7 +1,22 @@
 import cv2
 import numpy as np
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 from enum import Enum
+
+
+@dataclass
+class PlaneImagePoints:
+    image: np.ndarray
+    object_points: np.ndarray
+    ignore_background: bool = True
+
+
+@dataclass
+class ProjectedPlaneImage:
+    image: np.ndarray
+    destination_corners: np.ndarray
+    ignore_background: bool = True
 
 
 class CameraCalibrator:
@@ -199,32 +214,103 @@ class CameraCalibrator:
         # rvec, tvec 반환
         return (rvec, tvec)
 
-    def project(self, object_points) -> Optional[np.ndarray]:
-        """
-        현재 프레임에서 체스보드를 찾고, 찾으면 3D 점들을 2D로 투영한 결과를 반환한다.
-
-        투명 실패 시 None을 반환한다.
-        """
+    def _project_points(self, object_points) -> Optional[np.ndarray]:
         if self._is_lock:
-            # 고정된 외부 파라미터(rvec, tvec) 사용
             rvec, tvec = self.rvec, self.tvec
         else:
-            # 외부 파라미터(rvec, tvec) 추출
             extrinsic_parameters = self.extract_extrinsic_parameters()
             if extrinsic_parameters is None:
                 return None
             rvec, tvec = extrinsic_parameters
 
-        # 내부 파라미터(camera_matrix, dist_coeffs) 가져오기
         intrinsic_parameters = self.get_intrinsic_parameters()
         if intrinsic_parameters is None:
             return None
         camera_matrix, dist_coeffs = intrinsic_parameters
 
-        # 프레임에 투영
         obj_for_proj = np.asarray(object_points, dtype=np.float64).reshape(-1, 1, 3)
         image_points, _ = cv2.projectPoints(obj_for_proj, rvec, tvec, camera_matrix, dist_coeffs)
         return image_points.reshape(-1, 2)
+
+    def project(self, object_points) -> Optional[np.ndarray | ProjectedPlaneImage]:
+        """
+        현재 프레임에서 체스보드를 찾고, 찾으면 3D 점들을 2D로 투영한 결과를 반환한다.
+
+        투명 실패 시 None을 반환한다.
+        """
+        if isinstance(object_points, PlaneImagePoints):
+            if object_points.object_points.size == 0:
+                return None
+
+            height, width = object_points.image.shape[:2]
+            z_value = float(object_points.object_points[0, 2])
+            square_size = float(self.chessboard_square_size)
+            plane_corners = np.array(
+                [
+                    [-square_size, -square_size, z_value],
+                    [float(width) - square_size, -square_size, z_value],
+                    [float(width) - square_size, float(height) - square_size, z_value],
+                    [-square_size, float(height) - square_size, z_value],
+                ],
+                dtype=np.float64,
+            )
+            projected_corners = self._project_points(plane_corners)
+            if projected_corners is None:
+                return None
+            return ProjectedPlaneImage(
+                image=object_points.image,
+                destination_corners=projected_corners,
+                ignore_background=object_points.ignore_background,
+            )
+
+        return self._project_points(object_points)
+
+    def image_to_plane_points(self, image: np.ndarray, z: float = 0.0, ignore_background: bool = True) -> PlaneImagePoints:
+        """
+        2D 이미지의 모든 픽셀 좌표를 z=0 평면의 3D 좌표로 변환한다.
+
+        ignore_background=True이면 4채널 이미지에서 alpha가 0인 픽셀은 제외한다.
+
+        Args:
+            image (np.ndarray): 2D 또는 4채널 이미지
+            z (float): 평면의 z 좌표
+            ignore_background (bool): True이면 alpha가 0인 픽셀을 제외
+        Returns:
+            PlaneImagePoints: 이미지와 z=0 평면의 3D 좌표 묶음
+        """
+        source_image = image
+
+        if ignore_background and image.ndim == 3 and image.shape[2] == 4:
+            alpha_mask = image[:, :, 3] > 0
+            if np.any(alpha_mask):
+                ys, xs = np.where(alpha_mask)
+                x1, x2 = int(xs.min()), int(xs.max()) + 1
+                y1, y2 = int(ys.min()), int(ys.max()) + 1
+                source_image = image[y1:y2, x1:x2].copy()
+            else:
+                source_image = image[:0, :0].copy()
+
+        height, width = source_image.shape[:2]
+
+        x_coords, y_coords = np.meshgrid(np.arange(width, dtype=np.float64), np.arange(height, dtype=np.float64))
+        plane_points = np.stack(
+            [
+                x_coords,
+                y_coords,
+                np.full((height, width), float(z), dtype=np.float64),
+            ],
+            axis=-1,
+        ).reshape(-1, 3)
+
+        if ignore_background and source_image.ndim == 3 and source_image.shape[2] == 4 and source_image.size > 0:
+            alpha_mask = source_image[:, :, 3].reshape(-1) > 0
+            plane_points = plane_points[alpha_mask]
+
+        return PlaneImagePoints(
+            image=source_image,
+            object_points=plane_points,
+            ignore_background=ignore_background,
+        )
 
     def draw_on_chessboard(self, scale: float = 1.0, return_canvas: bool = False) -> Optional[np.ndarray]:
         """

@@ -7,6 +7,7 @@ from enum import Enum
 
 from ar_shuffleboard.models.main_model import MainModel
 from ar_shuffleboard.models.video_model import VideoModel
+from ar_shuffleboard.models.shuffleboard import Shuffleboard
 from ar_shuffleboard.models.gesture_detector import GestureDetector
 from ar_shuffleboard.models.camera_calibrator import CameraCalibrator
 from ar_shuffleboard.views.main_view import MainView
@@ -52,6 +53,18 @@ class MainController:
         # 임시
         self.video_model.set_source(0)
 
+        # 게임 모델
+        w, h = self.config_data["chessboard_pattern_size"]
+        cell_size = self.config_data["chessboard_square_size"]
+        board_size = ((w + 1) * cell_size, (h + 1) * cell_size)
+        self.game = Shuffleboard(
+            fps=self.config_data["fps"],
+            board_size=board_size,
+            puck_radius=10,
+            players=2,
+            pucks_per_player=4,
+        )
+
     def run(self):
         while not self.flags["terminated"]:
             # 프레임 읽기
@@ -59,6 +72,7 @@ class MainController:
             if frame is None:
                 break
 
+            # 거울 모드 설정
             if self.config_data["mirror"]:
                 frame = np.ascontiguousarray(np.flip(frame, axis=1))
 
@@ -84,6 +98,17 @@ class MainController:
 
             # 프레임 가공
             processed_frame = self.main_model.get_processed_frame(frame)
+
+            # 게임 모델
+            self.game.stepSpace(self.config_data["frame_interval_ms"])
+            if self.camera_calibrator.calibration_fsm.is_complete():
+                game_img = self.game.getGameImage()
+                projected_game = self.camera_calibrator.project(self.camera_calibrator.image_to_plane_points(game_img))
+                if projected_game is not None:  # 화면에 체스보드가 보일 때
+                    self.video_model.add_image_on_frame(
+                        processed_frame,
+                        projected_game,
+                    )
 
             # 오버레이 적용
             self.main_view.apply_overlay(processed_frame)
@@ -155,6 +180,7 @@ class MainController:
     # === Callbacks ===
 
     def mouseCallBack(self, event, x, y, flags, param):
+        """마우스 이벤트 콜백 메서드"""
         # 당기기 화살표 그리기
         if event == cv2.EVENT_RBUTTONDOWN:  # RMB click
             # TODO: 조건 불만족 시 None 할당 (ex: 기물 바깥 클릭)
@@ -180,3 +206,7 @@ class MainController:
                 y1 = int(y0 + dy * scale)
                 # 화살표 그리기
                 self.main_view.draw_arrow((x1, y1), (x0, y0), (255, 0, 0))
+
+    def generatePuck(self, game_img: np.ndarray, click_position: tuple[int, int]):
+        """클릭한 위치에 가장 가까운 시작 위치에 퍽 생성 - 마우스 우클릭"""
+        pass
