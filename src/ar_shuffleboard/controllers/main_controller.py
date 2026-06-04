@@ -195,18 +195,25 @@ class MainController:
                 # TODO scale[0, 1]을 전달하여 이벤트 호출
         elif event == cv2.EVENT_MOUSEMOVE and (flags & cv2.EVENT_FLAG_RBUTTON):  # RMB move w/ click
             if self.arrow_origin is not None:
-                # temp_canvas 초기화
-                self.main_view.clear_canvas()
-                x0, y0 = self.arrow_origin
-                dx, dy = x - x0, y - y0
-                length = np.hypot(dx, dy)
-                # 최대 길이 제한
-                scale = min(1.0, self.max_arrow_length / length)
-                x1 = int(x0 + dx * scale)
-                y1 = int(y0 + dy * scale)
-                # 화살표 그리기
-                self.main_view.draw_arrow((x1, y1), (x0, y0), (255, 0, 0))
+                self.drawArrow(self.arrow_origin, (x, y))
 
     def generatePuck(self, game_img: np.ndarray, click_position: tuple[int, int]):
         """클릭한 위치에 가장 가까운 시작 위치에 퍽 생성 - 마우스 우클릭"""
         pass
+
+    # === UI Methods ===
+
+    def drawArrow(self, puck_pos: tuple[int, int], mouse_pos: tuple[int, int]):
+        """퍽의 위치와 마우스 위치를 바탕으로 화면에 화살표를 그린다."""
+        # temp_canvas 초기화
+        self.main_view.clear_canvas()
+        x0, y0 = puck_pos
+        x, y = mouse_pos
+        dx, dy = x - x0, y - y0
+        length = np.hypot(dx, dy)
+        # 최대 길이 제한
+        scale = min(1.0, self.max_arrow_length / length)
+        x1 = int(x0 - dx * scale)
+        y1 = int(y0 - dy * scale)
+        # 화살표 그리기
+        self.main_view.draw_arrow((x0, y0), (x1, y1), (255, 0, 0))
