@@ -19,7 +19,7 @@ class GameView:
     # === Game Canvas ===
 
     def drawGameBoarderLines(self, image: np.ndarray):
-        """게임 보드의 경계선, 점수 영역 그리기"""
+        """게임 보드 경계선 그리기"""
         x, y = self.getGameOrigin()
         w, h = self.board_size
 
