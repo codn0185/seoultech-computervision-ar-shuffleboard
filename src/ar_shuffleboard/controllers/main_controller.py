@@ -11,6 +11,7 @@ from ar_shuffleboard.models.shuffleboard import Shuffleboard
 from ar_shuffleboard.models.gesture_detector import GestureDetector
 from ar_shuffleboard.models.camera_calibrator import CameraCalibrator
 from ar_shuffleboard.views.main_view import MainView
+from ar_shuffleboard.views.game_view import GameView
 from ar_shuffleboard.utils.constants import Keycode
 
 
@@ -57,13 +58,10 @@ class MainController:
         w, h = self.config_data["chessboard_pattern_size"]
         cell_size = self.config_data["chessboard_square_size"]
         board_size = ((w + 1) * cell_size, (h + 1) * cell_size)
-        self.game = Shuffleboard(
-            fps=self.config_data["fps"],
-            board_size=board_size,
-            puck_radius=10,
-            players=2,
-            pucks_per_player=4,
-        )
+        self.game_model = Shuffleboard(board_size)
+
+        # 게임 뷰
+        self.game_view = GameView(board_size)
 
     def run(self):
         while not self.flags["terminated"]:
@@ -100,9 +98,9 @@ class MainController:
             processed_frame = self.main_model.get_processed_frame(frame)
 
             # 게임 모델
-            self.game.stepSpace(self.config_data["frame_interval_ms"])
+            self.game_model.stepSpace(self.config_data["frame_interval_ms"])
             if self.camera_calibrator.calibration_fsm.is_complete():
-                game_img = self.game.getGameImage()
+                game_img = self.game_view.getGameCanvas(self.game_model.getPlayers())
                 projected_game = self.camera_calibrator.project(self.camera_calibrator.image_to_plane_points(game_img))
                 if projected_game is not None:  # 화면에 체스보드가 보일 때
                     self.video_model.add_image_on_frame(

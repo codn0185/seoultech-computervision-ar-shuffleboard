@@ -92,3 +92,10 @@ class Keycode:
     ESC: Final[int] = 27
     ENTER: Final[int] = 13
     SPACE: Final[int] = 32
+
+
+# Game
+class GameConfig:
+    PLAYERS: int = 2
+    PUCKS_PER_PLAYER: int = 4
+    PUCK_RADIUS: int = 10
