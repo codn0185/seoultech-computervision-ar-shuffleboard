@@ -77,7 +77,7 @@ class Shuffleboard:
         self.space = pymunk.Space()
         self.space.damping = 0.65
 
-    # === Game Manager ===
+    # === Game Events ===
 
     def placePuck(self, position: Optional[tuple[int, int]] = None, player: Optional[PlayerData] = None):
         """게임 보드에 퍽을 배치한다."""
@@ -93,6 +93,7 @@ class Shuffleboard:
 
         self.current_puck = Puck(body, shape)
         player.pucks.append(self.current_puck)
+        self.setNextPlayer()
 
     def hitPuck(self, puck: Puck, velocity: tuple[int, int]):
         """퍽의 속도를 직접 설정한다."""
