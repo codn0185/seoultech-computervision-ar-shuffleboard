@@ -153,14 +153,14 @@ class MainController:
             return
         print(f"[MainController] Key Pressed: {Keycode.to_str(keycode)}")
         match keycode:
-            case Keycode.ESC:
+            case Keycode.ESC:  # 프로그램 종료
                 self.enableFlag("terminated")
-            case Keycode.SPACE:
+            case Keycode.SPACE:  # 손 랜드마크 표시 on/off
                 self.toggleFlag("show_hands")
-            case Keycode.ENTER:
+            case Keycode.ENTER:  # 카메라 캘리브레이션 수행 (외부 파라미터 구하기)
                 if self.camera_calibrator.calibration_fsm.is_waiting():
                     self.camera_calibrator.calibration_fsm.to_collecting()
-            case Keycode.L | Keycode.l:  # 카메라 외부 파라미터 고정 토글
+            case Keycode.L | Keycode.l:  # 카메라 내부 파라미터 고정 on/off
                 if self.camera_calibrator.is_lock():
                     self.camera_calibrator.lock_extrinsic_parameters(lock=False)
                 else:
