@@ -46,6 +46,11 @@ class PlayerData:
         self.color = color
         self.score = 0
 
+    def reset(self):
+        self.pucks.clear()
+        self.left_pucks = self.total_pucks
+        self.score = 0
+
 
 PLAYER_COLOR_LIST: list[tuple[int, int, int]] = [  # BGRA
     (255, 0, 0, 255),  # blue
@@ -72,41 +77,7 @@ class Shuffleboard:
         self.space = pymunk.Space()
         self.space.damping = 0.65
 
-    def setPlayerConfig(self, id: int, name: Optional[str] = None, puck_color: Optional[tuple[int, int, int]] = None):
-        """플레이어 정보(이름, 퍽 색상)을 설정한다."""
-        player = self.player_list[id]
-        if name is not None:
-            player.name = name
-        if puck_color is not None:
-            player.puck_color = puck_color
-
-    def setScore(self, id: int, score: int):
-        """플레이어의 점수를 설정한다."""
-        self.player_list[id].score = score
-
-    def updateScores(self):
-        """퍽의 위치를 기반으로 점수를 업데이트한다."""
-        for player in self.player_list:
-            player.score = 0
-            for puck in player.pucks:
-                player.score += self.getScoreByPosition(puck)
-
-    def getScoreByPosition(self, puck: Puck) -> int:
-        """위치에 따른 점수를 반환한다."""
-        w, h = self.board_size
-        x, y = puck.body.position
-        # 좌우 모서리 벗어낫는지 확인
-        if y + self.puck_radius <= 0 or y - self.puck_radius >= h:
-            return 0
-        # 점수 영역 내부인지 확인
-        prev_ratio = 0.0
-        for score_area in SCORE_AREA_LIST:
-            next_ratio = prev_ratio + score_area.ratio
-            if prev_ratio * w - self.puck_radius < x < next_ratio * w + self.puck_radius:
-                return score_area.score
-            prev_ratio = next_ratio
-
-        return 0
+    # === Game Manager ===
 
     def placePuck(self, position: Optional[tuple[int, int]] = None, player: Optional[PlayerData] = None):
         """게임 보드에 퍽을 배치한다."""
@@ -133,17 +104,47 @@ class Shuffleboard:
             return
         self.hitPuck(self.current_puck, velocity)
 
-    def getPlacedPucks(self) -> list[Puck]:
-        """배치된 퍽들을 반환한다."""
-        return self.placed_puck_list
+    def updateScores(self):
+        """퍽의 위치를 기반으로 점수를 업데이트한다."""
+        for player in self.player_list:
+            player.score = 0
+            for puck in player.pucks:
+                player.score += self.getScoreByPosition(puck)
 
     def stepSpace(self, dt: int):
         """시뮬레이션 공간에서 시간의 흐름을 진행한다."""
         self.space.step(dt / 1000.0)
 
-    def getCurrentPlayer(self) -> PlayerData:
-        """현재 플레이어를 반환한다."""
-        return self.player_list[self.current_player_idx]
+    # === Utilities ===
+
+    def setPlayerConfig(self, id: int, name: Optional[str] = None, puck_color: Optional[tuple[int, int, int]] = None):
+        """플레이어 정보(이름, 퍽 색상)을 설정한다."""
+        player = self.player_list[id]
+        if name is not None:
+            player.name = name
+        if puck_color is not None:
+            player.puck_color = puck_color
+
+    def setScore(self, id: int, score: int):
+        """플레이어의 점수를 설정한다."""
+        self.player_list[id].score = score
+
+    def getScoreByPosition(self, puck: Puck) -> int:
+        """위치에 따른 점수를 반환한다."""
+        w, h = self.board_size
+        x, y = puck.body.position
+        # 좌우 모서리 벗어낫는지 확인
+        if y + self.puck_radius <= 0 or y - self.puck_radius >= h:
+            return 0
+        # 점수 영역 내부인지 확인
+        prev_ratio = 0.0
+        for score_area in SCORE_AREA_LIST:
+            next_ratio = prev_ratio + score_area.ratio
+            if prev_ratio * w - self.puck_radius < x < next_ratio * w + self.puck_radius:
+                return score_area.score
+            prev_ratio = next_ratio
+
+        return 0
 
     def setNextPlayer(self):
         """다음 플레이어로 설정한다."""
@@ -151,7 +152,18 @@ class Shuffleboard:
         if self.current_player_idx == len(self.player_list):
             self.current_player_idx = 0
 
+    # === Getter Methods ===
+
+    def getPlacedPucks(self) -> list[Puck]:
+        """배치된 퍽들을 반환한다."""
+        return self.placed_puck_list
+
+    def getCurrentPlayer(self) -> PlayerData:
+        """현재 플레이어를 반환한다."""
+        return self.player_list[self.current_player_idx]
+
     def getPlayers(self):
+        """플레이어 리스트를 반환한다."""
         return self.player_list
 
 
