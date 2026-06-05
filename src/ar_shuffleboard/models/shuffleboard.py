@@ -111,6 +111,16 @@ class Shuffleboard:
             for puck in player.pucks:
                 player.score += self.getScoreByPosition(puck)
 
+    def resetGame(self):
+        """게임을 초기화한다."""
+        self.current_player_idx = 0
+        self.current_puck = None
+
+        for player in self.player_list:
+            for puck in player.pucks:
+                self.space.remove(puck.shape, puck.body)
+            player.reset()
+
     def stepSpace(self, dt: int):
         """시뮬레이션 공간에서 시간의 흐름을 진행한다."""
         self.space.step(dt / 1000.0)
