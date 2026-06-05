@@ -131,6 +131,46 @@ class GameView:
         """게임 캔버스 반환"""
         return self.game_canvas
 
+    def getProjectBoardCanvas(self) -> np.ndarray:
+        """
+        게임 보드(원본 크기, 보드 바깥 여백 없음)를 RGBA 포맷으로 반환합니다.
+        이는 카메라 프레임에 투영할 때 사용됩니다.
+        """
+        w, h = self.board_size
+        canvas = np.zeros((h, w, 4), dtype=np.uint8)
+
+        # draw score areas
+        prev_area = 0.0
+        for score_area in SCORE_AREA_LIST:
+            prev_area += score_area.ratio
+            x1 = int((prev_area - score_area.ratio) * w)
+            x2 = int(prev_area * w)
+            color = score_area.color
+            cv2.rectangle(canvas, (x1, 0), (x2, h), color, -1)
+
+        # border lines
+        line_color = (127, 127, 127, 255)
+        cv2.line(canvas, (0, 0), (w, 0), line_color, 2)
+        cv2.line(canvas, (0, h), (w, h), line_color, 2)
+        cv2.line(canvas, (0, 0), (0, h), line_color, 2)
+        cv2.line(canvas, (w, 0), (w, h), line_color, 2)
+
+        # score boundaries
+        prev_area = 0.0
+        for score_area in SCORE_AREA_LIST:
+            prev_area += score_area.ratio
+            _x = int(prev_area * w)
+            cv2.line(canvas, (_x, 0), (_x, h), line_color, 2)
+
+        # pucks
+        for player in self.game_model.getPlayers():
+            for puck in player.pucks:
+                cx, cy = puck.body.position
+                center = (int(cx), int(cy))
+                cv2.circle(canvas, center, GameConfig.PUCK_RADIUS, player.color, -1)
+
+        return canvas
+
     # === Game Overlay ===
 
     def clearGameOverlay(self):

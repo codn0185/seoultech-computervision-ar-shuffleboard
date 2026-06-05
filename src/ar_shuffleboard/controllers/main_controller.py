@@ -102,8 +102,15 @@ class MainController:
             # 게임 모델
             self.game_model.stepSpace(self.config_data["frame_interval_ms"])
             if self.camera_calibrator.calibration_fsm.is_complete():
-                game_img = self.game_view.getGameCanvas()
-                projected_game = self.camera_calibrator.project(self.camera_calibrator.image_to_plane_points(game_img))
+                # 프로젝트용 보드 캔버스(원본 크기, 보드만)를 생성하여 실제 체스보드에 맞춰 투영
+                board_img = self.game_view.getProjectBoardCanvas()
+                pixel_to_unit = 1.0
+                plane_pts = self.camera_calibrator.image_to_plane_points(board_img, ignore_background=False, pixel_to_unit=pixel_to_unit)
+                # 한 칸(cell_size) 만큼 이동 — 사용자가 요청한 반대 방향(기존과 반대로)
+                cell_size = float(self.config_data["chessboard_square_size"])  # in mm (and pixels when pixel_to_unit==1)
+                shift_px = cell_size / float(pixel_to_unit)
+                plane_pts.origin = (int(shift_px), int(shift_px))
+                projected_game = self.camera_calibrator.project(plane_pts)
                 if projected_game is not None:  # 화면에 체스보드가 보일 때
                     self.video_model.add_image_on_frame(
                         processed_frame,

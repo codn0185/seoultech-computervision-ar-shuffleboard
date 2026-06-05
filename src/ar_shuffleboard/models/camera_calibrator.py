@@ -10,6 +10,9 @@ class PlaneImagePoints:
     image: np.ndarray
     object_points: np.ndarray
     ignore_background: bool = True
+    pixel_to_unit: float = 1.0
+    origin: tuple[int, int] = (0, 0)
+    full_size: tuple[int, int] | None = None
 
 
 @dataclass
@@ -244,13 +247,24 @@ class CameraCalibrator:
 
             height, width = object_points.image.shape[:2]
             z_value = float(object_points.object_points[0, 2])
-            square_size = float(self.chessboard_square_size)
+            # pixel_to_unit: how many plane units (mm) per image pixel
+            p2u = float(getattr(object_points, "pixel_to_unit", 1.0))
+            origin_px = getattr(object_points, "origin", (0, 0))
+            origin_units_x = float(origin_px[0]) * p2u
+            origin_units_y = float(origin_px[1]) * p2u
+
+            plane_w = float(width) * p2u
+            plane_h = float(height) * p2u
+
+            # Build plane corners in plane units so that the canvas pixel at origin_px
+            # corresponds to plane coordinate (0,0). This aligns the canvas origin
+            # with the chessboard top-left.
             plane_corners = np.array(
                 [
-                    [-square_size, -square_size, z_value],
-                    [float(width) - square_size, -square_size, z_value],
-                    [float(width) - square_size, float(height) - square_size, z_value],
-                    [-square_size, float(height) - square_size, z_value],
+                    [-origin_units_x, -origin_units_y, z_value],
+                    [plane_w - origin_units_x, -origin_units_y, z_value],
+                    [plane_w - origin_units_x, plane_h - origin_units_y, z_value],
+                    [-origin_units_x, plane_h - origin_units_y, z_value],
                 ],
                 dtype=np.float64,
             )
@@ -265,7 +279,7 @@ class CameraCalibrator:
 
         return self._project_points(object_points)
 
-    def image_to_plane_points(self, image: np.ndarray, z: float = 0.0, ignore_background: bool = True) -> PlaneImagePoints:
+    def image_to_plane_points(self, image: np.ndarray, z: float = 0.0, ignore_background: bool = True, pixel_to_unit: float = 1.0) -> PlaneImagePoints:
         """
         2D 이미지의 모든 픽셀 좌표를 z=0 평면의 3D 좌표로 변환한다.
 
@@ -280,6 +294,10 @@ class CameraCalibrator:
         """
         source_image = image
 
+        full_h, full_w = image.shape[:2]
+
+        origin_x = 0
+        origin_y = 0
         if ignore_background and image.ndim == 3 and image.shape[2] == 4:
             alpha_mask = image[:, :, 3] > 0
             if np.any(alpha_mask):
@@ -287,16 +305,20 @@ class CameraCalibrator:
                 x1, x2 = int(xs.min()), int(xs.max()) + 1
                 y1, y2 = int(ys.min()), int(ys.max()) + 1
                 source_image = image[y1:y2, x1:x2].copy()
+                origin_x, origin_y = x1, y1
             else:
                 source_image = image[:0, :0].copy()
 
         height, width = source_image.shape[:2]
 
         x_coords, y_coords = np.meshgrid(np.arange(width, dtype=np.float64), np.arange(height, dtype=np.float64))
+        # convert pixel coordinates to plane units using pixel_to_unit
+        plane_x = x_coords * float(pixel_to_unit)
+        plane_y = y_coords * float(pixel_to_unit)
         plane_points = np.stack(
             [
-                x_coords,
-                y_coords,
+                plane_x,
+                plane_y,
                 np.full((height, width), float(z), dtype=np.float64),
             ],
             axis=-1,
@@ -310,6 +332,9 @@ class CameraCalibrator:
             image=source_image,
             object_points=plane_points,
             ignore_background=ignore_background,
+            pixel_to_unit=float(pixel_to_unit),
+            origin=(origin_x, origin_y),
+            full_size=(full_w, full_h),
         )
 
     def draw_on_chessboard(self, scale: float = 1.0, return_canvas: bool = False) -> Optional[np.ndarray]:
