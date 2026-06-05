@@ -44,12 +44,9 @@ class MainController:
             "show_hands": False,  # 손 랜드마크 출력 플래그
         }
 
+        # 메인 뷰
         cv2.namedWindow(self.config_data["window_title"])
-        cv2.setMouseCallback(self.config_data["window_title"], self.mouseCallBack)
-
-        # 마우스 클릭한 상태로 이동하여 당기기 화살표 애니메이션 구현
-        self.arrow_origin: Optional[tuple[int, int]] = None  # 마우스 우클릭 시작 위치
-        self.max_arrow_length: float = 80  # 화살표 길이 (px)
+        cv2.setMouseCallback(self.config_data["window_title"], self.mouseCallBackForMainWindow)
 
         # 임시
         self.video_model.set_source(0)
@@ -61,7 +58,12 @@ class MainController:
         self.game_model = Shuffleboard(board_size)
 
         # 게임 뷰
-        self.game_view = GameView(board_size)
+        self.game_view = GameView(
+            game_model=self.game_model,
+            window_title="Game Window",
+            board_size=board_size,
+            callback=self.mouseCallBackForGameWindow,
+        )
 
     def run(self):
         while not self.flags["terminated"]:
@@ -100,7 +102,7 @@ class MainController:
             # 게임 모델
             self.game_model.stepSpace(self.config_data["frame_interval_ms"])
             if self.camera_calibrator.calibration_fsm.is_complete():
-                game_img = self.game_view.getGameCanvas(self.game_model.getPlayers())
+                game_img = self.game_view.getGameCanvas()
                 projected_game = self.camera_calibrator.project(self.camera_calibrator.image_to_plane_points(game_img))
                 if projected_game is not None:  # 화면에 체스보드가 보일 때
                     self.video_model.add_image_on_frame(
@@ -113,6 +115,7 @@ class MainController:
 
             # 화면에 출력
             self.main_view.show_frame(processed_frame, apply_canvas=True)
+            self.game_view.showGameWindow()
 
             # 키 입력 감지 및 이벤트 핸들러 호출
             keycode = cv2.waitKeyEx(self.config_data["frame_interval_ms"])
@@ -124,6 +127,8 @@ class MainController:
             # 기타
             self.timestamp_ms += self.config_data["frame_interval_ms"]
             self.frame_index += 1
+
+            self.game_model.check()
 
         self.video_model.release()
         self.main_view.close_all()
@@ -165,6 +170,8 @@ class MainController:
                     self.camera_calibrator.lock_extrinsic_parameters(lock=False)
                 else:
                     self.camera_calibrator.lock_extrinsic_parameters(lock=True)
+            case Keycode.R | Keycode.r:  # 게임 초기화
+                self.game_model.resetGame()
 
     def windowCloseEventHandler(self):
         """윈도우 닫힘을 확인하여 앱 종료를 설정한다."""
@@ -177,27 +184,53 @@ class MainController:
 
     # === Callbacks ===
 
-    def mouseCallBack(self, event, x, y, flags, param):
+    def mouseCallBackForMainWindow(self, event, x, y, flags, param):
         """마우스 이벤트 콜백 메서드"""
-        # 당기기 화살표 그리기
-        if event == cv2.EVENT_RBUTTONDOWN:  # RMB click
-            # TODO: 조건 불만족 시 None 할당 (ex: 기물 바깥 클릭)
-            self.arrow_origin = (x, y)
-        elif event == cv2.EVENT_RBUTTONUP:  # RMB release
-            self.main_view.clear_canvas()
-            if self.arrow_origin is not None:
-                x0, y0 = self.arrow_origin
-                dx, dy = x - x0, y - y0
-                length = np.hypot(dx, dy)
-                scale = min(1.0, self.max_arrow_length / length)
-                # TODO scale[0, 1]을 전달하여 이벤트 호출
-        elif event == cv2.EVENT_MOUSEMOVE and (flags & cv2.EVENT_FLAG_RBUTTON):  # RMB move w/ click
-            if self.arrow_origin is not None:
-                self.drawArrow(self.arrow_origin, (x, y))
-
-    def generatePuck(self, game_img: np.ndarray, click_position: tuple[int, int]):
-        """클릭한 위치에 가장 가까운 시작 위치에 퍽 생성 - 마우스 우클릭"""
+        # # 당기기 화살표 그리기
+        # if event == cv2.EVENT_RBUTTONDOWN:  # RMB click
+        #     # TODO: 조건 불만족 시 None 할당 (ex: 기물 바깥 클릭)
+        #     self.arrow_origin = (x, y)
+        # elif event == cv2.EVENT_RBUTTONUP:  # RMB release
+        #     self.main_view.clear_canvas()
+        #     if self.arrow_origin is not None:
+        #         x0, y0 = self.arrow_origin
+        #         dx, dy = x - x0, y - y0
+        #         length = np.hypot(dx, dy)
+        #         scale = min(1.0, self.max_arrow_length / length)
+        #         # TODO scale[0, 1]을 전달하여 이벤트 호출
+        # elif event == cv2.EVENT_MOUSEMOVE and (flags & cv2.EVENT_FLAG_RBUTTON):  # RMB move w/ click
+        #     if self.arrow_origin is not None:
+        #         self.drawArrow(self.arrow_origin, (x, y))
         pass
+
+    def mouseCallBackForGameWindow(self, event, x, y, flags, param):
+        """
+        LMB Click: 퍽 배치
+        RMB Click / Move / Release: 퍽 힘 조절 및 놓기
+        """
+        if self.game_model.shuffleboard_fsm.is_end():
+            return
+
+        origin_x, origin_y = self.game_view.getGameOrigin()
+        board_x, board_y = self.game_view.board_size
+        if event == cv2.EVENT_RBUTTONDOWN:  # RMB click - 퍽 배치
+            puck_x = board_x
+            puck_y = np.clip(y - origin_y, 0, board_y)
+            self.game_model.placePuck((puck_x, puck_y))
+        if event == cv2.EVENT_LBUTTONDOWN:  # LMB click - 발사
+            puck_x, puck_y = self.game_model.getReadyPuck().body.position
+            puck_x, puck_y = origin_x + puck_x, origin_y + puck_y
+            scale = 3.0
+            velocity = (int(scale * (puck_x - x)), int(scale * (puck_y - y)))
+            self.game_model.hitPuckForReady(velocity)
+        elif event == cv2.EVENT_MOUSEMOVE and (flags & cv2.EVENT_FLAG_LBUTTON):  # LMB move w/ click - 마우스 좌클릭 드래그
+            end_pos = (x, y)
+            self.game_view.setLastMousePos(end_pos)
+            self.game_view.drawPuckArrow()
+        elif event == cv2.EVENT_LBUTTONUP:  # LMB release
+            end_pos = (x, y)
+
+        self.game_view.setLastMousePos(None)
 
     # === UI Methods ===
 

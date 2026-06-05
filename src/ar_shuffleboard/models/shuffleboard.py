@@ -2,9 +2,9 @@ import numpy as np
 import cv2
 import pymunk
 
-
 from typing import Optional
 from dataclasses import dataclass
+from enum import Enum
 
 from ar_shuffleboard.utils.constants import GameConfig
 
@@ -51,6 +51,12 @@ class PlayerData:
         self.left_pucks = self.total_pucks
         self.score = 0
 
+    def addPuck(self, puck: Puck):
+        if self.left_pucks == 0:
+            return
+        self.left_pucks -= 1
+        self.pucks.append(puck)
+
 
 PLAYER_COLOR_LIST: list[tuple[int, int, int]] = [  # BGRA
     (255, 0, 0, 255),  # blue
@@ -61,6 +67,49 @@ PLAYER_COLOR_LIST: list[tuple[int, int, int]] = [  # BGRA
 
 
 class Shuffleboard:
+    class ShuffleboardFiniteStateMachine:
+        """셔플보드 게임 유한상태머신"""
+
+        class ShuffleboardState(Enum):
+            """
+            ready -> 퍽 배치 -> done -> 퍽 치기 -> ready
+
+            """
+
+            ready = 0  # 퍽 배치 준비
+            placed = 1  # 퍽 배치 완료
+            end = 3  # 게임 종료
+
+        _current_state: ShuffleboardState = ShuffleboardState.ready
+
+        def current_state(self):
+            return self._current_state
+
+        def _switch_state(self, new_state: ShuffleboardState):
+            print(f"[Shuffleboard.ShuffleboardFiniteStateMachine] State Switched: {self._current_state} -> {new_state}")
+            self._current_state = new_state
+
+        def to_ready(self):
+            self._current_state = self.ShuffleboardState.ready
+
+        def to_placed(self):
+            self._current_state = self.ShuffleboardState.placed
+
+        def to_end(self):
+            self._current_state = self.ShuffleboardState.end
+
+        def _is_state(self, target_state: ShuffleboardState) -> bool:
+            return self._current_state == target_state
+
+        def is_ready(self):
+            return self._is_state(self.ShuffleboardState.ready)
+
+        def is_placed(self):
+            return self._is_state(self.ShuffleboardState.placed)
+
+        def is_end(self):
+            return self._is_state(self.ShuffleboardState.end)
+
     def __init__(
         self,
         board_size: tuple[int, int],
@@ -75,14 +124,22 @@ class Shuffleboard:
 
         # Pymunk
         self.space = pymunk.Space()
-        self.space.damping = 0.65
+        self.space.damping = 0.6
+
+        # FSM
+        self.shuffleboard_fsm = self.ShuffleboardFiniteStateMachine()
 
     # === Game Events ===
 
     def placePuck(self, position: Optional[tuple[int, int]] = None, player: Optional[PlayerData] = None):
         """게임 보드에 퍽을 배치한다."""
+        if not self.shuffleboard_fsm.is_ready():  # 퍽 배치 준비 여부 확인
+            return
+
         if player is None:
             player = self.getCurrentPlayer()
+        if player.left_pucks == 0:
+            return
         body = pymunk.Body(10, 500)
         if position is None:
             w, h = self.board_size
@@ -92,18 +149,26 @@ class Shuffleboard:
         self.space.add(body, shape)
 
         self.current_puck = Puck(body, shape)
-        player.pucks.append(self.current_puck)
-        self.setNextPlayer()
+        player.addPuck(self.current_puck)
 
-    def hitPuck(self, puck: Puck, velocity: tuple[int, int]):
+        self.shuffleboard_fsm.to_placed()  # 퍽 배치 상태로 전환
+
+    def _hitPuck(self, puck: Puck, velocity: tuple[int, int]):
         """퍽의 속도를 직접 설정한다."""
         puck.body.velocity = velocity
 
     def hitPuckForReady(self, velocity: tuple[int, int]):
-        """준비된 퍽을 친다."""
+        """현재 플레이어의 준비된 퍽을 친다."""
         if self.current_puck is None:
             return
-        self.hitPuck(self.current_puck, velocity)
+        if not self.shuffleboard_fsm.is_placed():  # 퍽 배치 완료 상태 여부 확인
+            return
+        self._hitPuck(self.current_puck, velocity)
+        self.setNextPlayer()
+        self.shuffleboard_fsm.to_ready()
+        self.current_puck = None
+        # 퍽 배치 준비 상태 설정
+        self.shuffleboard_fsm.to_ready()
 
     def updateScores(self):
         """퍽의 위치를 기반으로 점수를 업데이트한다."""
@@ -124,7 +189,7 @@ class Shuffleboard:
 
     def stepSpace(self, dt: int):
         """시뮬레이션 공간에서 시간의 흐름을 진행한다."""
-        self.space.step(dt / 1000.0)
+        self.space.step(dt / 500.0)
 
     # === Utilities ===
 
@@ -135,6 +200,10 @@ class Shuffleboard:
             player.name = name
         if puck_color is not None:
             player.puck_color = puck_color
+
+    def resetScores(self):
+        for player in self.player_list:
+            player.score = 0
 
     def setScore(self, id: int, score: int):
         """플레이어의 점수를 설정한다."""
@@ -163,11 +232,28 @@ class Shuffleboard:
         if self.current_player_idx == len(self.player_list):
             self.current_player_idx = 0
 
+    def checkGameScore(self):
+        self.resetScores()
+        for player in self.player_list:
+            for puck in player.pucks:
+                player.score += self.getScoreByPosition(puck)
+
+    def checkGameEnd(self):
+        if self.shuffleboard_fsm.is_ready() and all(player.left_pucks == 0 for player in self.player_list):
+            self.shuffleboard_fsm.to_end()
+
+    def check(self):
+        self.checkGameEnd()
+        self.checkGameScore()
+
     # === Getter Methods ===
 
     def getPlacedPucks(self) -> list[Puck]:
         """배치된 퍽들을 반환한다."""
         return self.placed_puck_list
+
+    def getReadyPuck(self) -> Puck:
+        return self.current_puck
 
     def getCurrentPlayer(self) -> PlayerData:
         """현재 플레이어를 반환한다."""
